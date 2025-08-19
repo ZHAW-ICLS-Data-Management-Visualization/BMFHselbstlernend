@@ -2,6 +2,8 @@
 
 Code für den Unterricht im Rahmen des [BMFH](https://www.bmfh.ch/) 2025. Wir programmieren einen elementaren Sensor-Aktor-Roboter. Er besteht aus einem Sensor (XYZ-Lagesensor) und zwei Aktoren (Servo-Motoren).  
 
+![Steuerung der zwei Servor-Motoren mit Hilfe von diskreten Positionen](steuerungdiskret.png)
+
 ## Kennenlernen der Steuerung
 
 Wir steuern den Roboter mit Hilfen der Arduino IDE. Wenn er einmal programmiert ist, kann er mit dem Batterieblock autonom arbeiten. Zu Beginn geben wir ihm fixe Positionen vor, die er ansteuern soll. Mit so einem Ablauf kommen wir schon ziemlich schnell vorwärts.
@@ -9,6 +11,8 @@ Wir steuern den Roboter mit Hilfen der Arduino IDE. Wenn er einmal programmiert 
 ## Lernen anhand der Positionen
 
 Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des Sensors herausfinden, ob er sich vorwärtsbewegt. Er lernt so, seine Bewegung selber zu optimieren.
+
+![Steuerung der zwei Servor-Motoren mit Hilfe von Sinuskurven](steuerungskurve.png)
 
 ## Flüssigere Bewegungen
 
