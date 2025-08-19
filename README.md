@@ -1,5 +1,7 @@
 # BMFH - selbstlernender Roboter
 
+![Die Klammern für den Robeter werden 3D-gedruckt](openscad_klammern.png)
+
 Code für den Unterricht im Rahmen des [BMFH](https://www.bmfh.ch/) 2025. Wir programmieren einen elementaren Sensor-Aktor-Roboter. Er besteht aus einem Sensor (XYZ-Lagesensor) und zwei Aktoren (Servo-Motoren).  
 
 ![Steuerung der zwei Servor-Motoren mit Hilfe von diskreten Positionen](steuerungdiskret.png)
