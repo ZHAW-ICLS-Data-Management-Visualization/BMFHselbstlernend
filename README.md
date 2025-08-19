@@ -27,3 +27,5 @@ Analog des Positionenlernens können wir mit unserem Setup auch die Kurven und d
 ## Erweitertes, intelligenteres Lernen
 
 Statt im zufälligen Raum, lassen wir den Algorithmus in der Nähe eines optimierten Wertesets nach besseren Möglichkeiten suchen. So können wir auf bereits Erlerntem aufbauen und uns weiterentwickeln. Wir erarbeiten uns das Skript selber, beginnend vom kontinierlichen oder vom sinoidalen Ansatz aus.
+
+![Animation des Gestells](fullmove.gif)
