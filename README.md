@@ -1,12 +1,12 @@
 # BMFH - selbstlernender Roboter
 
-![Die Klammern für den Robeter werden 3D-gedruckt](openscad_klammern.png)
+![Die Klammern für den Roboter werden 3D-gedruckt](openscad_klammern.png)
 
 Code für den Unterricht im Rahmen des [BMFH](https://www.bmfh.ch/) 2025. Wir programmieren einen elementaren Sensor-Aktor-Roboter. Er besteht aus einem Sensor (XYZ-Lagesensor) und zwei Aktoren (Servo-Motoren).  
 
-![Steuerung der zwei Servor-Motoren mit Hilfe von diskreten Positionen](steuerungdiskret.png)
-
 ## Kennenlernen der Steuerung
+
+![Steuerung der zwei Servor-Motoren mit Hilfe von diskreten Positionen](steuerungdiskret.png)
 
 Wir steuern den Roboter mit Hilfen der [Arduino IDE](https://arduino.cc). Wenn er einmal programmiert ist, kann er mit dem Batterieblock autonom arbeiten. Zu Beginn geben wir ihm fixe Positionen vor, die er ansteuern soll. Mit so einem Ablauf kommen wir schon ziemlich schnell vorwärts. [Dieses Skript bildet die Basis](./kontinuierlich/kontinuierlich.ino).
 
@@ -14,9 +14,9 @@ Wir steuern den Roboter mit Hilfen der [Arduino IDE](https://arduino.cc). Wenn e
 
 Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des Sensors herausfinden, ob er sich vorwärtsbewegt. Er lernt so, seine Bewegung selber zu optimieren. [Dieses Skript bildet die Basis](./selbstlernende/selbstlernende.ino).
 
-![Steuerung der zwei Servor-Motoren mit Hilfe von Sinuskurven](steuerungskurve.png)
-
 ## Flüssigere Bewegungen
+
+![Steuerung der zwei Servor-Motoren mit Hilfe von Sinuskurven](steuerungskurve.png)
 
 Wir wechseln von den fixen Positionen zu Sinuskurven. Durch Optimierung der Kurvengeometrie und der synchronen Abhängigkeit der beiden Motoren kommen wir schneller vorwärts.  [Dieses Skript bildet die Basis](./sinus/sinus.ino).
 
