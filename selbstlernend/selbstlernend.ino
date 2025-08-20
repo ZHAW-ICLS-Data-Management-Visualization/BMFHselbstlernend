@@ -1,155 +1,313 @@
-#include "Servo.h" // Wir benutzen die Servo-Bibliothek, um Motoren zu steuern
-#include <DFRobot_BMI160.h> // Bibliothek für den Bewegungssensor
+// ===========================
+// === BIBLIOTHEKEN ===
+// ===========================
+#include "Servo.h" // Servo-Bibliothek fuer Motorsteuerung
+#include "Wire.h"  // I2C-Bibliothek fuer Sensorkommunikation
 
-Servo servoBox; // Erstes Servo-Objekt für Servo Box
-Servo servoFuss; // Zweites Servo-Objekt für Servo Fuss
+// ===========================
+// === SERVO-KONFIGURATION ===
+// ===========================
+Servo servoBox;  // Servo-Objekt fuer Box-Bewegung
+Servo servoFuss; // Servo-Objekt fuer Fuss-Bewegung
 
-DFRobot_BMI160 bewegungsSensor; // Objekt für den Bewegungssensor
-const int8_t i2cAdresse = 0x69; // Adresse für den Sensor (I2C)
+// Bewegungsbereiche und Schrittweiten
+const int bewegungsBereich1[] = {50, 130}; // Bereich fuer Servo Box (Min, Max)
+const int bewegungsBereich2[] = {50, 130}; // Bereich fuer Servo Fuss (Min, Max)
+const int schrittweite1 = 10; // Schrittweite fuer Servo Box
+const int schrittweite2 = 10; // Schrittweite fuer Servo Fuss
 
-const int bewegungsBereich1[] = {50, 130}; // Bereich für Servo Box (Minimum und Maximum)
-const int bewegungsBereich2[] = {50, 130}; // Bereich für Servo Fuss (Minimum und Maximum)
-const int schrittweite1 = 10; // Schrittweite für Servo Box
-const int schrittweite2 = 10; // Schrittweite für Servo Fuss
-int anzahlSchritte1 = (bewegungsBereich1[1] - bewegungsBereich1[0]) / schrittweite1; // Anzahl Schritte für Servo Box
-int anzahlSchritte2 = (bewegungsBereich2[1] - bewegungsBereich2[0]) / schrittweite2; // Anzahl Schritte für Servo Fuss
-int neuePositionen1[] = {0, 0}; // Neue Positionen für Servo Box (Start und Ziel)
-int neuePositionen2[] = {0, 0}; // Neue Positionen für Servo Fuss (Start und Ziel)
-volatile float bestePositionen[] = {0, 0, 0, 0, 0}; // Beste gefundene Positionen und Bewegung
+// Berechnete Werte
+int anzahlSchritte1 = (bewegungsBereich1[1] - bewegungsBereich1[0]) / schrittweite1; // Anzahl Schritte fuer Servo Box
+int anzahlSchritte2 = (bewegungsBereich2[1] - bewegungsBereich2[0]) / schrittweite2; // Anzahl Schritte fuer Servo Fuss
 
-int bewegungsRichtung = 4; // Richtung für die Messung (1-3 = Beschleunigung, 4-6 = Geschwindigkeit)
+// ===========================
+// === SENSOR-KONFIGURATION ===
+// ===========================
+const int MPU_ADDR = 0x68; // I2C-Adresse des MPU-6050 Sensors
 
-static int schleifenZaehler = 0; // Zählt die Durchläufe der Hauptschleife
-static int startPhase = 0; // Status der Lernschritte
+// Sensor-Rohdaten
+int16_t accelerometer_x, accelerometer_y, accelerometer_z; // Beschleunigungssensor-Werte
+int16_t gyro_x, gyro_y, gyro_z;                           // Gyroskop-Werte
+int16_t temperature;                                       // Temperatur-Wert
+char acc_y;                                                // Variable fuer Vorwaertsbewegung
 
-int versuche = 0; // Zählt die Versuche
-int lernFortschritt = 0; // Zählt die erfolgreichen Lernschritte
+// ===========================
+// === LERN-ALGORITHMUS ===
+// ===========================
+int neuePositionen1[] = {0, 0};          // Neue Positionen fuer Servo Box (Start, Ziel)
+int neuePositionen2[] = {0, 0};          // Neue Positionen fuer Servo Fuss (Start, Ziel)
+volatile float bestePositionen[] = {0, 0, 0, 0, 0}; // Beste Positionen: [Box1, Fuss1, Box2, Fuss2, Bewegung]
+
+int bewegungsRichtung = 4; // Messrichtung (1-3 = Beschleunigung, 4-6 = Geschwindigkeit)
+
+// ===========================
+// === SYSTEM-VARIABLEN ===
+// ===========================
+static int schleifenZaehler = 0; // Zaehler fuer Hauptschleifen-Durchlaeufe
+static int startPhase = 0;       // Aktueller Status der Lernphasen
+int versuche = 0;                // Zaehler fuer Lernversuche
+int lernFortschritt = 0;         // Zaehler fuer erfolgreiche Lernschritte
+
+// ===========================
+// === HILFSFUNKTIONEN ===
+// ===========================
+char tmp_str[7]; // Temporaerer String-Puffer fuer Zahlkonvertierung
+
+// Konvertiert int16 zu String mit fester Laenge fuer Debug-Ausgaben
+char* convert_int16_to_str(int16_t i) {
+  sprintf(tmp_str, "%6d", i);
+  return tmp_str;
+}
 
 void setup() {
-  servoBox.attach(6);  // Verbinde Servo 1 mit Pin 6
-  servoFuss.attach(4);  // Verbinde Servo 2 mit Pin 4
-
-  Serial.begin(9600); // Starte die serielle Kommunikation
-
-  // Sensor zurücksetzen
-  if (bewegungsSensor.softReset() != BMI160_OK){
-    Serial.println("Reset fehlgeschlagen");
-    while(1); // Stoppe das Programm
-  }
-
-  // Sensor mit Adresse initialisieren
-  if (bewegungsSensor.I2cInit(i2cAdresse) != BMI160_OK){
-    Serial.println("Init fehlgeschlagen");
-    while(1); // Stoppe das Programm
-  }
+  // === Serielle Kommunikation initialisieren ===
+  Serial.begin(9600); // Starte die serielle Kommunikation fuer Debug-Ausgaben
+  Serial.println("=== Selbstlernender Roboter startet ===");
+  
+  // === Servo-Motoren initialisieren ===
+  servoBox.attach(6);   // Verbinde Servo Box mit Pin 6
+  servoFuss.attach(4);  // Verbinde Servo Fuss mit Pin 4
+  Serial.println("Servos initialisiert");
+  
+  // === MPU-6050 Sensor initialisieren ===
+  Wire.begin();
+  Wire.beginTransmission(MPU_ADDR); // Startet eine Uebertragung an den I2C-Slave (GY-521 Board)
+  Wire.write(0x6B); // PWR_MGMT_1 Register
+  Wire.write(0);     // auf null setzen (weckt den MPU-6050 auf)
+  Wire.endTransmission(true);
+  Serial.println("MPU-6050 Sensor initialisiert");
+  
+  Serial.println("=== Initialisierung abgeschlossen ===");
+  Serial.println();
 }
 
+// ===========================
+// === HAUPTFUNKTIONEN ===
+// ===========================
+
+/**
+ * Liest Sensordaten vom MPU-6050 und gibt die Y-Beschleunigung zurueck
+ * @return float - Normalisierte Y-Beschleunigung als Bewegungswert
+ */
 float pruefeBewegung() {
-  int i = 0; // Zähler für die Schleife
-  int resultat; // Speichert das Ergebnis
-  int16_t sensorDaten[6]={0}; // Array für Sensorwerte
-  // Hole die Daten vom Sensor (Beschleunigung und Gyro)
-  resultat = bewegungsSensor.getAccelGyroData(sensorDaten);
-  /*
-  // Das funktioniert gut
-  if(resultat == 0){
-    for(i=0; i<6; i++){
-      if ( i<3 ){
-        // Die ersten drei Werte sind Gyro-Daten
-        Serial.println(String(i) + ":" + String(sensorDaten[i]*3.14/180.0));
-      } else {
-        // Die letzten drei Werte sind Beschleunigungsdaten
-        Serial.println(String(i) + ":" + String(sensorDaten[i]/16384.0));
-      }
-    }
-  }*/
-  return sensorDaten[abs(bewegungsRichtung)-1]/16384.0; // Gib die Bewegung zurück
+  // === Sensor-Daten abfragen ===
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x3B); // Startet mit Register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false); // Verbindung aktiv halten fuer weiteres Lesen
+  Wire.requestFrom(MPU_ADDR, 7*2, true); // Fordert 14 Register an (7 x 2 Bytes)
+
+  // === Register auslesen ===
+  accelerometer_x = Wire.read()<<8 | Wire.read(); // X-Beschleunigung (0x3B, 0x3C)
+  accelerometer_y = Wire.read()<<8 | Wire.read(); // Y-Beschleunigung (0x3D, 0x3E)
+  accelerometer_z = Wire.read()<<8 | Wire.read(); // Z-Beschleunigung (0x3F, 0x40)
+  temperature     = Wire.read()<<8 | Wire.read(); // Temperatur (0x41, 0x42)
+  gyro_x          = Wire.read()<<8 | Wire.read(); // X-Rotation (0x43, 0x44)
+  gyro_y          = Wire.read()<<8 | Wire.read(); // Y-Rotation (0x45, 0x46)
+  gyro_z          = Wire.read()<<8 | Wire.read(); // Z-Rotation (0x47, 0x48)
+  
+  // === Debug-Ausgabe aller Sensorwerte ===
+  Serial.print("aX = "); Serial.print(convert_int16_to_str(accelerometer_x));
+  Serial.print(" | aY = "); Serial.print(convert_int16_to_str(accelerometer_y));
+  Serial.print(" | aZ = "); Serial.print(convert_int16_to_str(accelerometer_z));
+  Serial.print(" | tmp = "); Serial.print(temperature/340.00+36.53); // Temperatur in Celsius
+  Serial.print(" | gX = "); Serial.print(convert_int16_to_str(gyro_x));
+  Serial.print(" | gY = "); Serial.print(convert_int16_to_str(gyro_y));
+  Serial.print(" | gZ = "); Serial.print(convert_int16_to_str(gyro_z));
+  Serial.println();
+
+  // Normalisierte Y-Beschleunigung zurueckgeben (Hauptbewegungsrichtung)
+  return (float) accelerometer_y / 1000.0f;
 }
 
+/**
+ * Hauptschleife - wird kontinuierlich ausgefuehrt
+ * Startet den Lernprozess alle 20000 Durchlaeufe
+ */
 void loop() {
-  schleifenZaehler++; // Zähle die Schleifen
-  if (schleifenZaehler >= 20000) { // Nach 20000 Durchläufen
-    pruefeLernen(); // Starte die Lernfunktion
-    schleifenZaehler = 0; // Setze den Zähler zurück
+  schleifenZaehler++;
+  
+  // Alle 20000 Durchlaeufe einen Lernzyklus starten
+  if (schleifenZaehler >= 20000) {
+    pruefeLernen();
+    schleifenZaehler = 0; // Zaehler zuruecksetzen
   }
 }
 
+// ===========================
+// === HILFSFUNKTIONEN FUER SERVOS ===
+// ===========================
+
+/**
+ * Berechnet die Mittelposition eines Servos
+ * @param bereich Array mit Min/Max-Werten
+ * @return int Mittelposition
+ */
+int berechneMittelposition(const int bereich[]) {
+  return bereich[0] + (bereich[1] - bereich[0]) / 2;
+}
+
+/**
+ * Generiert zufaellige Positionen innerhalb des erlaubten Bereichs
+ */
+void generiereZufaelligePositionen() {
+  neuePositionen1[0] = bewegungsBereich1[0] + (random(anzahlSchritte1) * schrittweite1);
+  neuePositionen1[1] = bewegungsBereich1[0] + (random(anzahlSchritte1) * schrittweite1);
+  neuePositionen2[0] = bewegungsBereich2[0] + (random(anzahlSchritte2) * schrittweite2);
+  neuePositionen2[1] = bewegungsBereich2[0] + (random(anzahlSchritte2) * schrittweite2);
+  
+  Serial.println("Neue Positionen generiert: Box(" + 
+                String(neuePositionen1[0]) + "→" + String(neuePositionen1[1]) + 
+                "), Fuss(" + String(neuePositionen2[0]) + "→" + String(neuePositionen2[1]) + ")");
+}
+
+/**
+ * Setzt beide Servos auf ihre Mittelpositionen
+ */
+void setzeServosMittelposition() {
+  int mittelBox = berechneMittelposition(bewegungsBereich1);
+  int mittelFuss = berechneMittelposition(bewegungsBereich2);
+  
+  servoBox.write(mittelBox);
+  servoFuss.write(mittelFuss);
+  Serial.println("Servos auf Mittelposition: Box=" + String(mittelBox) + ", Fuss=" + String(mittelFuss));
+}
+
+/**
+ * Prueft ob beide Servos ihre Zielpositionen erreicht haben
+ * @param zielBox Zielposition fuer Servo Box
+ * @param zielFuss Zielposition fuer Servo Fuss
+ * @return bool True wenn beide Servos an der Zielposition sind
+ */
+bool servosErreichtPosition(int zielBox, int zielFuss) {
+  return (servoBox.read() == zielBox && servoFuss.read() == zielFuss);
+}
+
+// ===========================
+// === LERN-ALGORITHMUS ===
+// ===========================
+
+/**
+ * Hauptfunktion des Lernalgorithmus - State Machine
+ * Durchlaeuft verschiedene Phasen um optimale Bewegungen zu finden
+ */
 void pruefeLernen() {
-  if (random(20) == 0) { // Zufällig, manchmal ausgeben
-    Serial.println(startPhase);
+  // Gelegentliche Debug-Ausgabe der aktuellen Phase
+  if (random(20) == 0) {
+    Serial.println("Phase: " + String(startPhase));
   }
   
-  if (startPhase == 0) { // Anfang: neue Positionen wählen
-    neuePositionen1[0] = bewegungsBereich1[0] + (random(schrittweite1) * anzahlSchritte1);
-    neuePositionen1[1] = bewegungsBereich1[0] + (random(schrittweite1) * anzahlSchritte1);
-    neuePositionen2[0] = bewegungsBereich2[0] + (random(schrittweite2) * anzahlSchritte2);
-    neuePositionen2[1] = bewegungsBereich2[0] + (random(schrittweite2) * anzahlSchritte2);
-    Serial.println("Neue Positionen alle: " + String(neuePositionen1[0]) + ", " + String(neuePositionen1[1]) + ", " + String(neuePositionen2[0]) + ", " + String(neuePositionen2[1]));
-    startPhase = 1; // Weiter zum nächsten Schritt
-  } else if (startPhase == 1) { // Setze Servos in Mittelposition
-    servoBox.write(bewegungsBereich1[0]+(bewegungsBereich1[1]-bewegungsBereich1[0])/2);
-    servoFuss.write(bewegungsBereich2[0]+(bewegungsBereich2[1]-bewegungsBereich2[0])/2);
-    Serial.println("Setze Servos auf Mittelposition: " + String(bewegungsBereich1[0]+(bewegungsBereich1[1]-bewegungsBereich1[0])/2) + ", " + String(bewegungsBereich2[0]+(bewegungsBereich2[1]-bewegungsBereich2[0])/2));
-    startPhase = 2; // Weiter zum nächsten Schritt
-  } else if (startPhase == 2) { // Warten bis Servos in Mittelposition sind
-    if (servoBox.read() == bewegungsBereich1[0]+(bewegungsBereich1[1]-bewegungsBereich1[0])/2 && servoFuss.read() == bewegungsBereich2[0]+(bewegungsBereich2[1]-bewegungsBereich2[0])/2) {
-      delay(500); // Warte 0.5 Sekunden
-      startPhase = 1001; // Weiter zum nächsten Schritt
-    }
-  } else if (startPhase == 1001) { // Servos auf neue Positionen setzen
-    servoBox.write(neuePositionen1[0]);
-    servoFuss.write(neuePositionen2[0]);
-    Serial.println("Neue Positionen: " + String(neuePositionen1[0]) + ", " + String(neuePositionen2[0]));
-    startPhase = 1002; // Weiter zum nächsten Schritt
-  } else if (startPhase == 1002) { // Warten bis Servos auf Position sind
-    if (servoBox.read() == neuePositionen1[0] && servoFuss.read() == neuePositionen2[0]) {
-      delay(100); // Warte 0.1 Sekunden
-      startPhase = 1003; // Weiter zum nächsten Schritt
-    }
-  } else if (startPhase == 1003) { // Servos auf zweite neue Position setzen
-    servoBox.write(neuePositionen1[1]);
-    servoFuss.write(neuePositionen2[1]);
-    Serial.println("Neue Positionen: " + String(neuePositionen1[1]) + ", " + String(neuePositionen2[1]));
-    startPhase = 1004; // Weiter zum nächsten Schritt
-    return;
-  } else if (startPhase == 1004) { // Bewegung messen und vergleichen
-    versuche++; // Zähle die Versuche
-    float aktuelleBewegung = pruefeBewegung(); // Messe die Bewegung
-    Serial.println("Bewegung: " + String(aktuelleBewegung) + " für Richtung: " + String(bewegungsRichtung) + ", Versuche: " +  String(versuche) + ", alte beste: " + String(bestePositionen[4]));
-    if (aktuelleBewegung > bestePositionen[4]) { // Wenn besser als bisher
-      bestePositionen[0] = neuePositionen1[0];
-      bestePositionen[1] = neuePositionen2[0];
-      bestePositionen[2] = neuePositionen1[1];
-      bestePositionen[3] = neuePositionen2[1];
-      bestePositionen[4] = aktuelleBewegung;
-      lernFortschritt++; // Zähle erfolgreiche Lernschritte
-      Serial.println("Neue beste Bewegung: " + String(aktuelleBewegung));
-    }
-    if (servoBox.read() == neuePositionen1[1] && servoFuss.read() == neuePositionen2[1]) {
-      delay(100); // Warte 0.1 Sekunden
-      if (lernFortschritt >= 5 || versuche >= 20) { // Genug gelernt oder viele Versuche
-        Serial.println("Lernen abgeschlossen oder viele Versuche");
-        startPhase = 1007; // Weiter zum Abschluss
-      } else {
-        startPhase = 0; // Starte von vorne
+  switch (startPhase) {
+    case 0: // === PHASE 0: Neue Positionen generieren ===
+      generiereZufaelligePositionen();
+      startPhase = 1;
+      break;
+      
+    case 1: // === PHASE 1: Servos in Mittelposition bringen ===
+      setzeServosMittelposition();
+      startPhase = 2;
+      break;
+      
+    case 2: // === PHASE 2: Warten bis Servos Mittelposition erreicht haben ===
+      {
+        int mittelBox = berechneMittelposition(bewegungsBereich1);
+        int mittelFuss = berechneMittelposition(bewegungsBereich2);
+        
+        if (servosErreichtPosition(mittelBox, mittelFuss)) {
+          delay(500); // Stabilisierungszeit
+          startPhase = 1001;
+        }
       }
-    }
-  } else if (startPhase == 1007) { // Zeige die beste Bewegung mehrmals
-    Serial.println("============================");
-    for (int i = 0; i < 10; i++) { // Wiederhole 10-mal
-      servoBox.write(bewegungsBereich1[0]+(bewegungsBereich1[1]-bewegungsBereich1[0])/2);
-      servoFuss.write(bewegungsBereich2[0]+(bewegungsBereich2[1]-bewegungsBereich2[0])/2);
-      delay(500); // Warte für Bewegung
-      servoBox.write(bestePositionen[0]);
-      servoFuss.write(bestePositionen[1]);
-      delay(500); // Warte für Bewegung
-      servoBox.write(bestePositionen[2]);
-      servoFuss.write(bestePositionen[3]);
-      delay(500); // Warte für Bewegung
-    }
-    lernFortschritt = 0; // Setze Lernfortschritt zurück
-    versuche = 0; // Setze Versuche zurück
-    startPhase = 0; // Starte von vorne
+      break;
+      break;
+      
+    case 1001: // === PHASE 1001: Erste Position anfahren ===
+      servoBox.write(neuePositionen1[0]);
+      servoFuss.write(neuePositionen2[0]);
+      Serial.println("Anfahrt Position 1: Box=" + String(neuePositionen1[0]) + ", Fuss=" + String(neuePositionen2[0]));
+      startPhase = 1002;
+      break;
+      
+    case 1002: // === PHASE 1002: Warten bis erste Position erreicht ===
+      if (servosErreichtPosition(neuePositionen1[0], neuePositionen2[0])) {
+        delay(100); // Kurze Stabilisierungszeit
+        startPhase = 1003;
+      }
+      break;
+      
+    case 1003: // === PHASE 1003: Zweite Position anfahren ===
+      servoBox.write(neuePositionen1[1]);
+      servoFuss.write(neuePositionen2[1]);
+      Serial.println("Anfahrt Position 2: Box=" + String(neuePositionen1[1]) + ", Fuss=" + String(neuePositionen2[1]));
+      startPhase = 1004;
+      break;
+      
+    case 1004: // === PHASE 1004: Bewegung messen und bewerten ===
+      versuche++;
+      {
+        float aktuelleBewegung = pruefeBewegung();
+        Serial.println("Messung #" + String(versuche) + ": Bewegung=" + String(aktuelleBewegung) + 
+                      ", Beste=" + String(bestePositionen[4]));
+        
+        // Neue beste Bewegung gefunden?
+        if (aktuelleBewegung > bestePositionen[4]) {
+          bestePositionen[0] = neuePositionen1[0]; // Box Start
+          bestePositionen[1] = neuePositionen2[0]; // Fuss Start
+          bestePositionen[2] = neuePositionen1[1]; // Box Ziel
+          bestePositionen[3] = neuePositionen2[1]; // Fuss Ziel
+          bestePositionen[4] = aktuelleBewegung;   // Bewegungswert
+          lernFortschritt++;
+          
+          Serial.println("*** NEUE BESTE BEWEGUNG *** Wert: " + String(aktuelleBewegung) + 
+                        " (Fortschritt: " + String(lernFortschritt) + "/5)");
+        }
+        
+        // Warten bis Bewegung abgeschlossen, dann entscheiden wie weiter
+        if (servosErreichtPosition(neuePositionen1[1], neuePositionen2[1])) {
+          delay(100);
+          
+          // Genug gelernt oder zu viele Versuche?
+          if (lernFortschritt >= 5 || versuche >= 20) {
+            Serial.println("=== LERNPHASE BEENDET ===");
+            Serial.println("Erfolge: " + String(lernFortschritt) + ", Versuche: " + String(versuche));
+            startPhase = 1007; // Zur Demonstrationsphase
+          } else {
+            startPhase = 0; // Neuen Versuch starten
+          }
+        }
+        Serial.println("============================");
+      }
+      break;
+      
+    case 1007: // === PHASE 1007: Beste Bewegung demonstrieren ===
+      Serial.println("=== DEMONSTRATION DER BESTEN BEWEGUNG ===");
+      for (int i = 0; i < 10; i++) {
+        // Zur Mittelposition
+        setzeServosMittelposition();
+        delay(500);
+        
+        // Erste Position der besten Bewegung
+        servoBox.write(bestePositionen[0]);
+        servoFuss.write(bestePositionen[1]);
+        delay(500);
+        
+        // Zweite Position der besten Bewegung
+        servoBox.write(bestePositionen[2]);
+        servoFuss.write(bestePositionen[3]);
+        delay(500);
+      }
+      
+      // Zuruecksetzen fuer neuen Lernzyklus
+      lernFortschritt = 0;
+      versuche = 0;
+      startPhase = 0;
+      Serial.println("=== NEUER LERNZYKLUS STARTET ===");
+      break;
+      
+    default:
+      Serial.println("FEHLER: Unbekannte Phase " + String(startPhase));
+      startPhase = 0; // Zurueck zum Anfang
+      break;
   }
-  delay(100); // Kurze Pause für Stabilität
+  
+  delay(100); // Kurze Pause fuer Systemstabilitaet
 }
