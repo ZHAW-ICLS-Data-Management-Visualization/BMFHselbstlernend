@@ -64,7 +64,7 @@ const int MIN_ERFOLGE = 3;       // Minimale Anzahl Erfolge fuer Demo
 float aktuelleBewegung = 0.0;   // Gesamtbewegungswert für aktuelle Sequenz
 
 // Demonstrations-Variablen
-int demonstrationMax = 5;        // Maximale Anzahl an Demonstrationen
+int demonstrationMax = 20;        // Maximale Anzahl an Demonstrationen
 int demonstrationZyklus = 0;     // Aktueller Demonstrations-Zyklus (0-4)
 int demonstrationSchritt = 0;    // Aktueller Schritt im Zyklus (0=Start, 1=Mitte, 2=Ziel)
 unsigned long letzteAktion = 0;  // Zeitpunkt der letzten Demonstrations-Aktion
