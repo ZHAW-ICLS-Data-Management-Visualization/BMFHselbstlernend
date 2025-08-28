@@ -16,6 +16,8 @@ Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des 
 
 ## Flüssigere Bewegungen
 
+Im Prinzip funktioniert jetzt das Modell (wir nennen das MVP *minimum viable product* = *minimales brauchbares Produkt*\). Nun wollen wir es noch etwas eleganter programmieren.
+
 ### Immer noch fix ...
 
 Zwischen den einzelnen Positionenbewegen wir uns noch etwas zu ruckartig. Wenn wir die Punkte in der Bewegung etwas auffüllen, bekommen wir eine flüssigere Bewegung hin und verhindern auch das zufällige Bewegen beim Wackeln. [Das Skript dazu ist hier abgelegt](./fluessig/fluessig.ino).
