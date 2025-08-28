@@ -1,43 +1,98 @@
-#include <Servo.h> // Bibliothek für die Steuerung von Servomotoren einbinden
+#include <Servo.h>
 
-Servo servoBox; // Servo-Objekt für die Box
-Servo servoFuss; // Servo-Objekt für den Fuss
+// Servo-Objekte
+Servo servoBox;
+Servo servoFuss;
 
-int servoGeschwindigkeit = 5; // Zeit in Sekunden für eine komplette Bewegung (Periode)
+// Pin-Definitionen
+const int PIN_SERVO_BOX = 9;
+const int PIN_SERVO_FUSS = 10;
 
-const int boxPositionen[] = {130, 0, 130}; // Positionen, die die Box anfahren soll
-const int boxAnzahlPositionen = sizeof(boxPositionen) / sizeof(boxPositionen[0]); // Anzahl der Box-Positionen berechnen
+// Servo-Grenzen
+const int MIN_POS_BOX = 60;
+const int MAX_POS_BOX = 120;
+const int MIN_POS_FUSS = 60;
+const int MAX_POS_FUSS = 120;
 
-const int fussPositionen[] = {130, 130, 130, 50, 0, 0, 130}; // Positionen, die der Fuss anfahren soll
-const int fussAnzahlPositionen = sizeof(fussPositionen) / sizeof(fussPositionen[0]); // Anzahl der Fuss-Positionen berechnen
-float fussOffsetSekunden = 0; // Zeitverschiebung für den Fuss (Phasenverschiebung)
+// Sinuskurven-Parameter
+float zeit = 0.0;                    // Zeitvariable
+const float ZEITSCHRITT = 0.05;     // Zeitinkrement pro Loop
+const float FREQUENZ = 1.0;         // Frequenz der Sinuskurve (Hz)
+const float PHASEN_OFFSET = 0.0;    // Phasenverschiebung zwischen Box und Fuss (in Radiant)
+                                    // 0.0 = synchron
+                                    // PI/2 = 90° versetzt
+                                    // PI = 180° versetzt
 
-unsigned long startZeit; // Variable für den Startzeitpunkt
+// Berechnete Mittelpunkte und Amplituden
+const int MITTE_BOX = (MIN_POS_BOX + MAX_POS_BOX) / 2;
+const int AMPLITUDE_BOX = (MAX_POS_BOX - MIN_POS_BOX) / 2;
+const int MITTE_FUSS = (MIN_POS_FUSS + MAX_POS_FUSS) / 2;
+const int AMPLITUDE_FUSS = (MAX_POS_FUSS - MIN_POS_FUSS) / 2;
 
 void setup() {
-  servoBox.attach(6); // Box-Servo an Pin 6 anschließen
-  servoFuss.attach(4); // Fuss-Servo an Pin 4 anschließen
-  startZeit = millis(); // Startzeit speichern
-}
-
-// Funktion zum Berechnen der Zwischenpositionen (Interpolation)
-int interpolieren(const int* positionen, int anzahlPositionen, float t, float periode) {
-  float segmentZeit = periode / (anzahlPositionen - 1); // Zeit für einen Abschnitt berechnen
-  int segment = int(t / segmentZeit); // Abschnitt bestimmen
-  if (segment >= anzahlPositionen - 1) segment = anzahlPositionen - 2; // Sicherstellen, dass wir nicht über das Ende hinausgehen
-  float lokalT = (t - segment * segmentZeit) / segmentZeit; // Anteil innerhalb des Abschnitts berechnen
-  return positionen[segment] + (positionen[segment + 1] - positionen[segment]) * lokalT; // Zwischenposition berechnen
+  Serial.begin(9600);
+  
+  // Servos initialisieren
+  servoBox.attach(PIN_SERVO_BOX);
+  servoFuss.attach(PIN_SERVO_FUSS);
+  
+  // Startposition: Mitte
+  servoBox.write(MITTE_BOX);
+  servoFuss.write(MITTE_FUSS);
+  
+  Serial.println("=== Sinus-Steuerung gestartet ===");
+  Serial.print("Box-Bereich: ");
+  Serial.print(MIN_POS_BOX);
+  Serial.print(" - ");
+  Serial.println(MAX_POS_BOX);
+  Serial.print("Fuss-Bereich: ");
+  Serial.print(MIN_POS_FUSS);
+  Serial.print(" - ");
+  Serial.println(MAX_POS_FUSS);
+  Serial.print("Phasen-Offset: ");
+  Serial.print(PHASEN_OFFSET);
+  Serial.println(" Radiant");
+  Serial.println("Zeit,Box_Position,Fuss_Position");
+  
+  delay(2000); // Kurz warten
 }
 
 void loop() {
-  float t = fmod((millis() - startZeit) / 1000.0, servoGeschwindigkeit); // Zeit seit Start berechnen und auf Periode begrenzen
-
-  int boxPosition = interpolieren(boxPositionen, boxAnzahlPositionen, t, servoGeschwindigkeit); // Box-Position berechnen
-  servoBox.write(boxPosition); // Box-Servo auf die berechnete Position stellen
-
-  float fussT = fmod(t + fussOffsetSekunden, servoGeschwindigkeit); // Zeit für den Fuss mit Verschiebung berechnen
-  int fussPosition = interpolieren(fussPositionen, fussAnzahlPositionen, fussT, servoGeschwindigkeit); // Fuss-Position berechnen
-  servoFuss.write(fussPosition); // Fuss-Servo auf die berechnete Position stellen
-
-  delay(20); // 20 Millisekunden warten, damit die Bewegung flüssig bleibt
+  // Sinuskurven berechnen
+  float sinus_box = sin(2 * PI * FREQUENZ * zeit);
+  float sinus_fuss = sin(2 * PI * FREQUENZ * zeit + PHASEN_OFFSET);
+  
+  // Positionen berechnen (von -1 bis +1 auf Min-Max skalieren)
+  int position_box = MITTE_BOX + (int)(sinus_box * AMPLITUDE_BOX);
+  int position_fuss = MITTE_FUSS + (int)(sinus_fuss * AMPLITUDE_FUSS);
+  
+  // Sicherheitsbegrenzung
+  position_box = constrain(position_box, MIN_POS_BOX, MAX_POS_BOX);
+  position_fuss = constrain(position_fuss, MIN_POS_FUSS, MAX_POS_FUSS);
+  
+  // Servos bewegen
+  servoBox.write(position_box);
+  servoFuss.write(position_fuss);
+  
+  // Debug-Ausgabe (alle 0.2 Sekunden)
+  static unsigned long letzteAusgabe = 0;
+  if (millis() - letzteAusgabe > 200) {
+    Serial.print(zeit, 2);
+    Serial.print(",");
+    Serial.print(position_box);
+    Serial.print(",");
+    Serial.println(position_fuss);
+    letzteAusgabe = millis();
+  }
+  
+  // Zeit weiterzählen
+  zeit += ZEITSCHRITT;
+  
+  // Nach einer vollen Periode zurücksetzen (optional, verhindert Overflow)
+  if (zeit >= (1.0 / FREQUENZ) * 10) { // 10 komplette Zyklen
+    zeit = 0.0;
+  }
+  
+  // Warten bis zum nächsten Schritt
+  delay((int)(ZEITSCHRITT * 1000)); // ZEITSCHRITT in Millisekunden
 }
