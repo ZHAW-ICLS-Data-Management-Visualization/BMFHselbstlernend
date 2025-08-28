@@ -12,9 +12,11 @@ Wir steuern den Roboter mit Hilfen der [Arduino IDE](https://arduino.cc). Wenn e
 
 ## Lernen anhand der Positionen
 
-Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des Sensors herausfinden, ob er sich vorwärtsbewegt. Er lernt so, seine Bewegung selber zu optimieren. [Dieses Skript bildet die Basis](./selbstlernende/selbstlernende.ino).
+Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des Sensors herausfinden, ob er sich vorwärtsbewegt. Er lernt so, seine Bewegung selber zu optimieren. [Dieses Skript bildet die Basis](./selbstlernend/selbstlernend.ino).
 
 ## Flüssigere Bewegungen
+
+Zwischen den einzelnen Positionenbewegen wir uns noch etwas zu ruckartig. Wenn wir die Punkte in der Bewegung etwas auffüllen, bekommen wir eine flüssigere Bewegung hin und verhindern auch das zufällige Bewegen beim Wackeln. [Das Skript dazu ist hier abgelegt](./fluessig/fluessig.ino).
 
 ![Steuerung der zwei Servor-Motoren mit Hilfe von Sinuskurven](steuerungskurve.png)
 
@@ -26,6 +28,6 @@ Analog des Positionenlernens können wir mit unserem Setup auch die Kurven und d
 
 ## Erweitertes, intelligenteres Lernen
 
-Statt im zufälligen Raum, lassen wir den Algorithmus in der Nähe eines optimierten Wertesets nach besseren Möglichkeiten suchen. So können wir auf bereits Erlerntem aufbauen und uns weiterentwickeln. Wir erarbeiten uns das Skript selber, beginnend vom kontinierlichen oder vom sinoidalen Ansatz aus.
+Statt im zufälligen Raum, lassen wir den Algorithmus in der Nähe eines optimierten Wertesets nach besseren Möglichkeiten suchen. So können wir auf bereits Erlerntem aufbauen und uns weiterentwickeln. Wir erarbeiten uns das Skript selber, beginnend vom kontinierlichen oder vom sinoidalen Ansatz aus. "Eingeschränkte Freiheitsgrade"
 
 ![Animation des Gestells](fullmove.gif)
