@@ -16,9 +16,13 @@ Statt die Positionen von Hand festzulegen, lassen wir den Rechner mit Hilfe des 
 
 ## Flüssigere Bewegungen
 
+### Immer noch fix ...
+
 Zwischen den einzelnen Positionenbewegen wir uns noch etwas zu ruckartig. Wenn wir die Punkte in der Bewegung etwas auffüllen, bekommen wir eine flüssigere Bewegung hin und verhindern auch das zufällige Bewegen beim Wackeln. [Das Skript dazu ist hier abgelegt](./fluessig/fluessig.ino).
 
 ![Steuerung der zwei Servor-Motoren mit Hilfe von Sinuskurven](steuerungskurve.png)
+
+### ... von jetzt an flüssig
 
 Wir wechseln von den fixen Positionen zu Sinuskurven. Durch Optimierung der Kurvengeometrie und der synchronen Abhängigkeit der beiden Motoren kommen wir schneller vorwärts.  [Dieses Skript bildet die Basis](./sinus/sinus.ino).
 
